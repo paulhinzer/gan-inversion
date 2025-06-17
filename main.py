@@ -12,16 +12,6 @@ if __name__ == "__main__":
         "~/projects/gan_figure_maker/id_1_out_resize/512/2.jpg",
         "~/projects/gan_figure_maker/id_1_out_resize/512/3.jpg",
         "~/projects/gan_figure_maker/id_1_out_resize/512/4.jpg",
-        "~/projects/gan_figure_maker/id_1_out_resize/512/5.jpg",
-        "~/projects/gan_figure_maker/id_1_out_resize/512/6.jpg",
-        "~/projects/gan_figure_maker/id_1_out_resize/512/7.jpg",
-        "~/projects/gan_figure_maker/id_1_out_resize/512/8.jpg",
-        "~/projects/gan_figure_maker/id_1_out_resize/512/9.jpg",
-        "~/projects/gan_figure_maker/id_1_out_resize/512/10.jpg",
-        "~/projects/gan_figure_maker/id_1_out_resize/512/11.jpg",
-        "~/projects/gan_figure_maker/id_1_out_resize/512/12.jpg",
-        "~/projects/gan_figure_maker/id_1_out_resize/512/13.jpg",
-        "~/projects/gan_figure_maker/id_1_out_resize/512/14.jpg",
     ]
     images = [imageio.imread(p) for p in paths]
 
@@ -29,7 +19,7 @@ if __name__ == "__main__":
         model_path=CGSGAN_MODEL_PATH, source_path=CGSGAN_SOURCE_PATH, device="cuda:0"
     )
     # or use the .G attribtute
-    # generator = AttachedGSGANGenerator(model=generator.G, device="cuda:0")
+    generator = AttachedGSGANGenerator(model=generator.G, device="cuda:0")
 
     pti = PTI(generator, device="cuda:0")
     images_in_bgr = pti.preprocess(images)

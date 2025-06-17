@@ -1,12 +1,8 @@
-import imageio
 import lpips
 from torch import Tensor
 import numpy as np
 import torch
 from tqdm import tqdm
-import sys
-from Generator import CGSGANGenerator
-from paths import CGSGAN_MODEL_PATH
 from preprocess.Preprocess import Preprocessor
 from losses.id_loss.id_loss import IDLoss
 
