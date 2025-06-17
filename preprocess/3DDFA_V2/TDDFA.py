@@ -37,9 +37,7 @@ class TDDFA(object):
 
         # load BFM
         self.bfm = BFMModel(
-            bfm_fp=kvs.get(
-                "bfm_fp", make_abs_path("3DDFA_V2/configs/bfm_noneck_v3.pkl")
-            ),
+            bfm_fp=kvs.get("bfm_fp", make_abs_path("configs/bfm_noneck_v3.pkl")),
             shape_dim=kvs.get("shape_dim", 40),
             exp_dim=kvs.get("exp_dim", 10),
         )

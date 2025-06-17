@@ -1,13 +1,12 @@
 import os
 import sys
 
-from paths import IDLOSS_PATH
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import torch
 from id_loss.models.encoders.model_irse import Backbone
 import torch.nn.functional as F
 from torch.nn.functional import cosine_similarity
+from root import get_project_path
 
 
 class IDLoss(torch.nn.Module):
@@ -16,7 +15,9 @@ class IDLoss(torch.nn.Module):
         self.facenet = Backbone(
             input_size=112, num_layers=50, drop_ratio=0.6, mode="ir_se"
         )
-        self.facenet.load_state_dict(torch.load(IDLOSS_PATH))
+        self.facenet.load_state_dict(
+            torch.load(f"{get_project_path()}/models/model_ir_se50.pth")
+        )
         self.face_pool = torch.nn.AdaptiveAvgPool2d((112, 112))
         self.facenet.eval()
         self.facenet = self.facenet.to("cuda")

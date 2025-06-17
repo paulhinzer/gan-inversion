@@ -19,13 +19,16 @@ from preprocess.crop_utils import (
     eg3dcamparams,
 )
 import sys
+from root import get_project_path
 
 
 class KeypointDetector:
     def __call__(self, images):
         landmarks = []
         detector = dlib.get_frontal_face_detector()
-        predictor = dlib.shape_predictor("models/shape_predictor_68_face_landmarks.dat")
+        predictor = dlib.shape_predictor(
+            f"{get_project_path()}/models/shape_predictor_68_face_landmarks.dat"
+        )
         for image in images:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             rects = detector(gray, 1)
@@ -37,16 +40,25 @@ class KeypointDetector:
 
 class FaceCropper:
     def __call__(self, images, lmx):
-        sys.path.append("preprocess/3DDFA_V2/")
+        sys.path.append(f"{get_project_path()}/preprocess/3DDFA_V2/")
         from FaceBoxes import FaceBoxes  # type: ignore
         from TDDFA import TDDFA  # type: ignore
         from utils.pose import P2sRt  # type: ignore
         from utils.pose import matrix2angle  # type: ignore
 
-        cfg = yaml.load(
-            open("./preprocess/3DDFA_V2/configs/mb1_120x120.yml"),
-            Loader=yaml.SafeLoader,
-        )
+        cfg = {
+            "arch": "mobilenet",
+            "widen_factor": 1.0,
+            "checkpoint_fp": f"{get_project_path()}/preprocess/3DDFA_V2/weights/mb1_120x120.pth",
+            "bfm_fp": f"{get_project_path()}/preprocess/3DDFA_V2/configs/bfm_noneck_v3.pkl",
+            "size": 120,
+            "num_params": 62,
+        }
+
+        # cfg = yaml.load(
+        #     open(f"{get_project_path()}/preprocess/3DDFA_V2/configs/mb1_120x120.yml"),
+        #     Loader=yaml.SafeLoader,
+        # )
         gpu_mode = True
         tddfa = TDDFA(gpu_mode=gpu_mode, **cfg)
         face_boxes = FaceBoxes()
@@ -150,7 +162,7 @@ class Masking:
 
     def get_model(
         self,
-        checkpoint_path="./models/modnet_photographic_portrait_matting.ckpt",
+        checkpoint_path=f"{get_project_path()}/models/modnet_photographic_portrait_matting.ckpt",
     ):
         modnet = MODNet(backbone_pretrained=False)
         modnet = nn.DataParallel(modnet).cuda()

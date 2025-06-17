@@ -1,6 +1,6 @@
 # coding: utf-8
 
-__author__ = 'cleardusk'
+__author__ = "cleardusk"
 
 import os
 import numpy as np
@@ -14,34 +14,34 @@ def mkdir(d):
 
 def _get_suffix(filename):
     """a.jpg -> jpg"""
-    pos = filename.rfind('.')
+    pos = filename.rfind(".")
     if pos == -1:
-        return ''
-    return filename[pos + 1:]
+        return ""
+    return filename[pos + 1 :]
 
 
 def _load(fp):
     suffix = _get_suffix(fp)
-    if suffix == 'npy':
+    if suffix == "npy":
         return np.load(fp)
-    elif suffix == 'pkl':
-        return pickle.load(open(fp, 'rb'))
+    elif suffix == "pkl":
+        return pickle.load(open(fp, "rb"))
 
 
 def _dump(wfp, obj):
     suffix = _get_suffix(wfp)
-    if suffix == 'npy':
+    if suffix == "npy":
         np.save(wfp, obj)
-    elif suffix == 'pkl':
-        pickle.dump(obj, open(wfp, 'wb'))
+    elif suffix == "pkl":
+        pickle.dump(obj, open(wfp, "wb"))
     else:
-        raise Exception('Unknown Type: {}'.format(suffix))
+        raise Exception("Unknown Type: {}".format(suffix))
 
 
-def _load_tensor(fp, mode='cpu'):
-    if mode.lower() == 'cpu':
+def _load_tensor(fp, mode="cpu"):
+    if mode.lower() == "cpu":
         return torch.from_numpy(_load(fp))
-    elif mode.lower() == 'gpu':
+    elif mode.lower() == "gpu":
         return torch.from_numpy(_load(fp)).cuda()
 
 
