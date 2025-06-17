@@ -49,8 +49,9 @@ class FaceCropper:
         cfg = {
             "arch": "mobilenet",
             "widen_factor": 1.0,
-            "checkpoint_fp": f"{get_project_path()}/preprocess/3DDFA_V2/weights/mb1_120x120.pth",
-            "bfm_fp": f"{get_project_path()}/preprocess/3DDFA_V2/configs/bfm_noneck_v3.pkl",
+            "checkpoint_fp": f"{get_project_path()}/models/mb1_120x120.pth",
+            "bfm_fp": f"{get_project_path()}/models/bfm_noneck_v3_slim.pkl",
+            "param_mean_std_fp": f"{get_project_path()}/models/param_mean_std_62d_120x120.pkl",
             "size": 120,
             "num_params": 62,
         }
