@@ -214,10 +214,8 @@ class Preprocessor:
         self.masking = Masking()
 
     def __call__(self, images):
-        from main import save_debug_image
-
         keypoints = self.keypoint_detector(images)
         cropped_images, cam = self.face_cropper(images, keypoints)
-        save_debug_image(cropped_images[0], name="after_crop", from_tensor=False)
         _, masks = self.masking(cropped_images)
+        torch.set_grad_enabled(True)
         return masks, cam, cropped_images

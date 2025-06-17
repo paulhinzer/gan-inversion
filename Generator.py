@@ -1,17 +1,8 @@
+import sys
 import pickle
 from abc import ABC
 import copy
 import torch
-import sys
-
-from torch.autograd.profiler import record_function
-
-from paths import CGSGAN_SOURCE_PATH
-
-sys.path.append(CGSGAN_SOURCE_PATH)
-
-import dnnlib  # type: ignore
-import legacy as legacy  # type: ignore
 
 
 class Generator(ABC):
@@ -42,7 +33,11 @@ class Generator(ABC):
 
 
 class CGSGANGenerator(Generator):
-    def __init__(self, model_path, device="cuda:0"):
+    def __init__(self, model_path, source_path, device="cuda:0"):
+        sys.path.append(source_path)
+        import dnnlib  # type: ignore
+        import legacy as legacy  # type: ignore
+
         super().__init__(device)
         self.G = self.initialize_renderer(model_path)
 
@@ -55,7 +50,6 @@ class CGSGANGenerator(Generator):
 
 
 class AttachedGSGANGenerator(Generator):
-
     def __init__(self, model, device="cuda:0"):
         super().__init__(device)
         self.G = model
