@@ -12,13 +12,13 @@ import torch.backends.cudnn as cudnn
 
 import models
 from bfm import BFMModel
-from utils.io import _load
-from utils.functions import (
+from utils_3ddfa.io import _load
+from utils_3ddfa.functions import (
     crop_img,
     parse_roi_box_from_bbox,
     parse_roi_box_from_landmark,
 )
-from utils.tddfa_util import (
+from utils_3ddfa.tddfa_util import (
     load_model,
     _parse_param,
     similar_transform,

@@ -8,7 +8,7 @@ sys.path.append("..")
 
 import os.path as osp
 import numpy as np
-from utils.io import _load
+from utils_3ddfa.io import _load
 
 # from utils.io import _load
 

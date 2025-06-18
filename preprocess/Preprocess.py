@@ -43,8 +43,8 @@ class FaceCropper:
         sys.path.append(f"{get_project_path()}/preprocess/3DDFA_V2/")
         from FaceBoxes import FaceBoxes  # type: ignore
         from TDDFA import TDDFA  # type: ignore
-        from utils.pose import P2sRt  # type: ignore
-        from utils.pose import matrix2angle  # type: ignore
+        from utils_3ddfa.pose import P2sRt  # type: ignore
+        from utils_3ddfa.pose import matrix2angle  # type: ignore
 
         cfg = {
             "arch": "mobilenet",
