@@ -35,8 +35,8 @@ class Inversion:
         return image
 
     def get_random_w(self, num):
-        z_samples = np.random.RandomState(123).randn(num, self.generator.G.z_dim)
-        w_samples = self.generator.G.mapping(
+        z_samples = np.random.RandomState(123).randn(num, self.generator.z_dim)
+        w_samples = self.generator.mapping(
             torch.from_numpy(z_samples).to(self.device), self.cam[0].repeat((num, 1))
         )
         return w_samples
@@ -69,11 +69,12 @@ class Inversion:
         assert self._w is not None
         self._optim = {
             "optimizer": torch.optim.Adam(
-                params=self.generator.G.parameters(), lr=0.001
+                params=self.generator.parameters(), lr=0.001
             ),
             "state": "tune",
         }
         self.pre_tuning_done = True
+        self.pre_inversion_done = False
 
     def pre_inversion(self):
         torch.set_grad_enabled(True)
@@ -97,6 +98,7 @@ class Inversion:
         }
         self._w = w
         self.pre_inversion_done = True
+        self.pre_tuning_done = False
 
     def shape_w(self, w):
         if w.shape[0] == 1:
@@ -119,7 +121,11 @@ class Inversion:
         self.update_optimizer_lr(lr)
         self.get_optim().zero_grad()
         gen_w = self.shape_w(self._w)
-        generated_images = self.generator.generate(gen_w, self.cam, grad=True)
+        generated_images = self.generator.synthesis(
+            ws=gen_w,
+            c=self.cam,
+            random_bg=False,
+        )["image"]
         loss = self.calc_loss(generated_images, self._images, loss_weights)
         loss["full"].backward()
         self.get_optim().step()
@@ -154,12 +160,19 @@ class Inversion:
 
     def tuning_step(self, loss_weights):
         lr = loss_weights["lr"]
+        if not self.pre_inversion_done:
+            self.pre_inversion()
         if not self.pre_tuning_done:
             self.pre_tuning()
         self.update_optimizer_lr(lr)
         if self.get_state() != "tune":
             raise AttributeError("Model is not currently tuning.")
-        generated_images = self.generator.generate(self._w, self.cam, grad=True)
+        gen_w = self.shape_w(self._w)
+        generated_images = self.generator.synthesis(
+            ws=gen_w,
+            c=self.cam,
+            random_bg=False,
+        )["image"]
         loss = self.calc_loss(generated_images, self._images, loss_weights)
         self.get_optim().zero_grad()
         loss["full"].backward()
