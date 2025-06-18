@@ -152,7 +152,8 @@ class Inversion:
         for _ in tqdm(range(self.settings["max_tuning_steps"])):
             _, _ = self.tuning_step(weights)
 
-    def tuning_step(self, loss_weights, lr=0.001):
+    def tuning_step(self, loss_weights):
+        lr = loss_weights["lr"]
         if not self.pre_tuning_done:
             self.pre_tuning()
         self.update_optimizer_lr(lr)
