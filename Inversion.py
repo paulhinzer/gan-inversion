@@ -22,7 +22,7 @@ class Inversion:
         self.loss_percept = lpips.LPIPS(net="alex").to(self.device)
         self.ID_loss = IDLoss()
         self._w = None
-        self._optim = {"optimizer": None, "state": None}
+        self._optim = {"optimizer": None, "state": "initial"}
         self.pre_inversion_done = False
         self.pre_tuning_done = False
 
@@ -112,7 +112,7 @@ class Inversion:
 
     def inversion_step(self, loss_weights):
         lr = loss_weights["lr"]
-        if not self.pre_inversion_done:
+        if self.get_state() == "initial":
             self.pre_inversion()
         if self.get_state() != "invert":
             raise AttributeError("Model is not currently inverting.")
@@ -140,7 +140,7 @@ class Inversion:
         return self._optim["optimizer"]
 
     def set_state(self, state):
-        assert state in ["invert", "tune", "finished"]
+        assert state in ["initial", "invert", "tune", "finished"]
         self._optim["state"] = state
 
     def get_state(self):
@@ -153,7 +153,7 @@ class Inversion:
             _, _ = self.tuning_step(weights)
 
     def tuning_step(self, loss_weights, lr=0.001):
-        if not self.pre_tuning_done:
+        if self.get_state() == "invert":
             self.pre_tuning()
         self.update_optimizer_lr(lr)
         if self.get_state() != "tune":
