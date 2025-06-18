@@ -1,7 +1,7 @@
 import imageio
 from Generator import AttachedGSGANGenerator, CGSGANGenerator
 from paths import CGSGAN_MODEL_PATH, CGSGAN_SOURCE_PATH
-from Inversion import PTI
+from Inversion import Inversion
 
 if __name__ == "__main__":
 
@@ -21,14 +21,14 @@ if __name__ == "__main__":
     # or use the .G attribtute
     generator = AttachedGSGANGenerator(model=generator.G, device="cuda:0")
 
-    pti = PTI(generator, device="cuda:0")
-    images_in_bgr = pti.preprocess(images)
+    inverter = Inversion(generator, device="cuda:0")
+    images_in_bgr = inverter.preprocess(images)
 
-    pti.pre_inversion()
+    inverter.pre_inversion()
     weights = {"l2": 1, "lpips": 1, "id": 1}
     for _ in range(10):
-        current_w, losses = pti.inversion_step(weights, lr=0.001)
+        current_w, losses = inverter.inversion_step(weights, lr=0.001)
 
-    pti.pre_tuning()
+    inverter.pre_tuning()
     for _ in range(10):
-        current_w, losses = pti.tuning_step(weights, lr=0.001)
+        current_w, losses = inverter.tuning_step(weights, lr=0.001)

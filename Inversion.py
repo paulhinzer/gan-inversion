@@ -7,7 +7,7 @@ from preprocess.Preprocess import Preprocessor
 from losses.id_loss.id_loss import IDLoss
 
 
-class PTI:
+class Inversion:
     def __init__(self, generator, device):
         self.preprocessor = Preprocessor()
         self.settings = {
