@@ -24,6 +24,7 @@ class Inversion:
         self._w = None
         self._optim = {"optimizer": None, "state": None}
         self.pre_inversion_done = False
+        self.pre_tuning_done = False
 
     def mask_image(self, image, mask_image):
         bg = np.ones_like(image) * 255
@@ -72,6 +73,7 @@ class Inversion:
             ),
             "state": "tune",
         }
+        self.pre_tuning_done = True
 
     def pre_inversion(self):
         torch.set_grad_enabled(True)
@@ -94,6 +96,7 @@ class Inversion:
             "state": "invert",
         }
         self._w = w
+        self.pre_inversion_done = True
 
     def shape_w(self, w):
         if w.shape[0] == 1:
@@ -111,7 +114,6 @@ class Inversion:
         lr = loss_weights["lr"]
         if not self.pre_inversion_done:
             self.pre_inversion()
-            self.pre_inversion_done = True
         if self.get_state() != "invert":
             raise AttributeError("Model is not currently inverting.")
         self.update_optimizer_lr(lr)
@@ -151,6 +153,8 @@ class Inversion:
             _, _ = self.tuning_step(weights)
 
     def tuning_step(self, loss_weights, lr=0.001):
+        if not self.pre_tuning_done:
+            self.pre_tuning()
         self.update_optimizer_lr(lr)
         if self.get_state() != "tune":
             raise AttributeError("Model is not currently tuning.")
