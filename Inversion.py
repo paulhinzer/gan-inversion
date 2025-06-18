@@ -23,8 +23,6 @@ class Inversion:
         self.ID_loss = IDLoss()
         self._w = None
         self._optim = {"optimizer": None, "state": "initial"}
-        self.pre_inversion_done = False
-        self.pre_tuning_done = False
 
     def mask_image(self, image, mask_image):
         bg = np.ones_like(image) * 255
@@ -35,8 +33,8 @@ class Inversion:
         return image
 
     def get_random_w(self, num):
-        z_samples = np.random.RandomState(123).randn(num, self.generator.G.z_dim)
-        w_samples = self.generator.G.mapping(
+        z_samples = np.random.RandomState(123).randn(num, self.generator.z_dim)
+        w_samples = self.generator.mapping(
             torch.from_numpy(z_samples).to(self.device), self.cam[0].repeat((num, 1))
         )
         return w_samples
@@ -68,12 +66,11 @@ class Inversion:
     def pre_tuning(self):
         assert self._w is not None
         self._optim = {
-            "optimizer": torch.optim.Adam(
-                params=self.generator.G.parameters(), lr=0.001
-            ),
+            "optimizer": torch.optim.Adam(params=self.generator.parameters(), lr=0.001),
             "state": "tune",
         }
         self.pre_tuning_done = True
+        self.pre_inversion_done = False
 
     def pre_inversion(self):
         torch.set_grad_enabled(True)
@@ -97,6 +94,7 @@ class Inversion:
         }
         self._w = w
         self.pre_inversion_done = True
+        self.pre_tuning_done = False
 
     def shape_w(self, w, batch_size=None):
         if batch_size is None:
@@ -121,10 +119,13 @@ class Inversion:
         loss = {}
         for start_index in range(0, self.num_images, batch_size):
             batch_size = min(batch_size, self.num_images - start_index)
+            end_index = start_index + batch_size
             self.get_optim().zero_grad()
-            ground_truth = self._images[start_index : start_index + batch_size, ...]
+            ground_truth = self._images[start_index:end_index, ...]
             gen_w = self.shape_w(self._w, batch_size)
-            generated_images = self.generator.generate(gen_w, self.cam, grad=True)
+            generated_images = self.generator.synthesis(
+                ws=gen_w, c=self.cam[start_index:end_index, ...], random_bg=False
+            )["image"]
             loss = self.calc_loss(generated_images, ground_truth, hyperparams)
             loss["full"].backward()
             self.get_optim().step()
@@ -136,7 +137,6 @@ class Inversion:
         if self.get_state() != "invert":
             raise AttributeError("Model is not currently inverting.")
         loss = self.step(hyperparams)
-
         return self.get_current_w_pivot(), loss
 
     def get_current_w_pivot(self):
@@ -167,9 +167,10 @@ class Inversion:
             _, _ = self.tuning_step(weights)
 
     def tuning_step(self, hyperparams, lr=0.001):
+        if self.get_state() == "initial":
+            self.pre_inversion()
         if self.get_state() == "invert":
             self.pre_tuning()
-        self.update_optimizer_lr(lr)
         if self.get_state() != "tune":
             raise AttributeError("Model is not currently tuning.")
         loss = self.step(hyperparams)
