@@ -1,3 +1,6 @@
+import cv2
+import os
+from root import get_project_path
 import lpips
 from torch import Tensor
 import numpy as np
@@ -216,6 +219,15 @@ class Inversion:
         _ = self.invert()
         self.tune()
 
+    def render_w(self, w=None, cam=None):
+        if w is None:
+            w = self.get_current_w_pivot()
+        if cam is None:
+            cam = self.cam[0].unsqueeze(dim=0)
+
+        image = self.generator.synthesis(ws=w, c=cam, random_bg=False)["image"]
+        return image
+
 
 def tensor_to_image(tensor, normalize=True):
     if torch.is_tensor(tensor):
@@ -232,3 +244,23 @@ def tensor_to_image(tensor, normalize=True):
     elif len(image.shape) == 4:
         image = image.transpose(0, 2, 3, 1)
     return image
+
+
+def save_image(img, step=None, name="debug", from_tensor=True, save_path=None):
+    if save_path == None:
+        save_path = f"{get_project_path()}/examples/out"
+    if step is None:
+        full_name = name
+    else:
+        index = str(step).zfill(4)
+        full_name = f"{name}_{index}"
+    if from_tensor:
+        image = tensor_to_image(img)
+    else:
+        image = img
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # type:ignore
+    os.makedirs(save_path, exist_ok=True)
+    cv2.imwrite(  # type:ignore
+        f"{save_path}/{full_name}.png",
+        image,
+    )

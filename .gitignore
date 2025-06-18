@@ -26,6 +26,7 @@ share/python-wheels/
 MANIFEST
 /models/
 paths.py
+/examples/out/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
