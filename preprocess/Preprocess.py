@@ -1,16 +1,15 @@
 from PIL import Image
-
-# from MODNet.src.models.modnet import MODNet
-from preprocess.MODNet.src.models.modnet import MODNet
+import sys
+import dlib
+import cv2
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
-import dlib
-import numpy as np
-import cv2
-import yaml
-import numpy as np
+
+from root import get_project_path
+from preprocess.MODNet.src.models.modnet import MODNet
 from preprocess.crop_utils import (
     get_crop_bound,
     crop_image,
@@ -18,8 +17,6 @@ from preprocess.crop_utils import (
     find_center_bbox,
     eg3dcamparams,
 )
-import sys
-from root import get_project_path
 
 
 class KeypointDetector:
@@ -39,7 +36,7 @@ class KeypointDetector:
 
 
 class FaceCropper:
-    def __call__(self, images, lmx):
+    def __call__(self, images, lmx, size=512):
         sys.path.append(f"{get_project_path()}/preprocess/3DDFA_V2/")
         from FaceBoxes import FaceBoxes  # type: ignore
         from TDDFA import TDDFA  # type: ignore
@@ -56,15 +53,9 @@ class FaceCropper:
             "num_params": 62,
         }
 
-        # cfg = yaml.load(
-        #     open(f"{get_project_path()}/preprocess/3DDFA_V2/configs/mb1_120x120.yml"),
-        #     Loader=yaml.SafeLoader,
-        # )
         gpu_mode = True
         tddfa = TDDFA(gpu_mode=gpu_mode, **cfg)
         face_boxes = FaceBoxes()
-        size = 512
-        results_quad = {}
         results_meta = []
         cropped_images = []
         for i, item in enumerate(zip(images, lmx)):
@@ -90,8 +81,6 @@ class FaceCropper:
             param = param_lst[box_idx]
             P = param[:12].reshape(3, -1)  # camera matrix
             s_relative, R, t3d = P2sRt(P)
-            pose = matrix2angle(R)
-            pose = [p * 180 / np.pi for p in pose]
 
             # Adjust z-translation in object space
             R_ = param[:12].reshape(3, -1)[:, :3]
@@ -137,18 +126,11 @@ class FaceCropper:
             P = np.concatenate([R, t3d[:, None]], 1)
             P = np.concatenate([P, np.array([[0, 0, 0, 1.0]])], 0)
             results_meta.append(eg3dcamparams(P.flatten()))
-            # results_quad[img_path] = quad
 
             # Save cropped images
             cropped_img = crop_final(img_orig, size=size, quad=quad)
-            # cropped_img = cropped_img[:, :, ::-1] # BGR TO RGB
-            cropped_images.append(cv2.resize(cropped_img, (512, 512)))
+            cropped_images.append(cv2.resize(cropped_img, (size, size)))
 
-        results_new = []
-        # for img, P in results_meta.items():
-        #     img = os.path.basename(img)
-        #     res = [format(r, ".6f") for r in P]
-        #     results_new.append((img, res))
         return cropped_images, results_meta
 
 

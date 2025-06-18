@@ -18,11 +18,12 @@ class Inversion:
         self.device = device
         self.generator = generator
         self._images = None
-        self.loss_L2 = torch.nn.MSELoss(reduction="sum").to(self.device)
+        self.loss_L2 = torch.nn.MSELoss(reduction="mean").to(self.device)
         self.loss_percept = lpips.LPIPS(net="alex").to(self.device)
         self.ID_loss = IDLoss()
         self._w = None
         self._optim = {"optimizer": None, "state": None}
+        self.pre_inversion_done = False
 
     def mask_image(self, image, mask_image):
         bg = np.ones_like(image) * 255
@@ -57,9 +58,9 @@ class Inversion:
         losses["lpips"] = torch.mean(loss_lpips)
         losses["id"] = self.ID_loss(gen_image, gt_image)
         losses["full"] = (
-            losses["l2"] * weights["l2"]
-            + losses["lpips"] * weights["lpips"]
-            + losses["id"] * weights["id"]
+            losses["l2"] * weights["mse_loss"]
+            + losses["lpips"] * weights["lpips_loss"]
+            + losses["id"] * weights["id_loss"]
         )
         return losses
 
@@ -73,6 +74,7 @@ class Inversion:
         }
 
     def pre_inversion(self):
+        torch.set_grad_enabled(True)
         avg_w: Tensor = self.calc_average_w()
         if self.settings["one_w_for_all"]:
             w = avg_w.clone().detach().requires_grad_(True).to(self.device)
@@ -105,7 +107,11 @@ class Inversion:
             self.inversion_step(weights)
         return self.shape_w(self._w)
 
-    def inversion_step(self, loss_weights, lr=0.001):
+    def inversion_step(self, loss_weights):
+        lr = loss_weights["lr"]
+        if not self.pre_inversion_done:
+            self.pre_inversion()
+            self.pre_inversion_done = True
         if self.get_state() != "invert":
             raise AttributeError("Model is not currently inverting.")
         self.update_optimizer_lr(lr)
@@ -160,7 +166,7 @@ class Inversion:
         cams_tensors = []
         masked_images = []
 
-        for image, mask, camera in zip(images, masks, cams):
+        for image, mask, camera in tqdm(zip(images, masks, cams), desc="preprocessing"):
             if mask.ndim == 2:
                 mask = mask[:, :, np.newaxis]
             bg = np.ones_like(image) * 255

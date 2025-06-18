@@ -36,7 +36,6 @@ class CGSGANGenerator(Generator):
     def __init__(self, model_path, source_path, device="cuda:0"):
         sys.path.append(source_path)
         import dnnlib  # type: ignore
-        import legacy as legacy  # type: ignore
 
         super().__init__(device)
         self.G = self.initialize_renderer(model_path)
