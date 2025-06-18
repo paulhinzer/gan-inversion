@@ -191,7 +191,10 @@ class Inversion:
             .detach()
         )
         self.num_images = self._images.shape[0]
-        return tensor_to_image(self._images)
+        return_images = tensor_to_image(self._images)
+        if self.num_images == 1:
+            return_images = np.expand_dims(return_images, axis=0)
+        return return_images
 
     def train(self, images):
         self.preprocess(images)

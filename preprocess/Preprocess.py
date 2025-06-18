@@ -209,7 +209,14 @@ class Preprocessor:
         self.masking = Masking()
 
     def __call__(self, images):
+        num_images = len(images)
+
+        if num_images == 0:
+            raise ValueError("No images given")
+
         keypoints = self.keypoint_detector(images)
+        if len(keypoints) != num_images:
+            raise ValueError("No image keypoints detected")
         cropped_images, cam = self.face_cropper(images, keypoints)
         _, masks = self.masking(cropped_images)
         torch.set_grad_enabled(True)
