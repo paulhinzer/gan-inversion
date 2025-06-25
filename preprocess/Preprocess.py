@@ -32,6 +32,8 @@ class KeypointDetector:
             for i, rect in enumerate(rects):
                 shape = predictor(gray, rect)
                 landmarks.append([np.array([p.x, p.y]) for p in shape.parts()])
+            if len(rects) == 0:
+                landmarks.append(-1)
         return landmarks
 
 
@@ -208,6 +210,34 @@ class Preprocessor:
         self.face_cropper = FaceCropper()
         self.masking = Masking()
 
+    def filter_by_valid_keypoints(self, images, keypoints):
+        filtered_images = []
+        filtered_keypoints = []
+        for img, kp in zip(images, keypoints):
+            if kp != -1:
+                filtered_images.append(img)
+                filtered_keypoints.append(kp)
+
+        return filtered_images, filtered_keypoints
+
+    @staticmethod
+    def mask_image(image, mask_image):
+        if mask_image.ndim == 2:
+            mask_image = mask_image[:, :, np.newaxis]
+        bg = np.ones_like(image) * 255
+        image = ((mask_image / 255) * image + (1 - mask_image / 255) * bg).astype(
+            np.uint8
+        )
+        image = torch.from_numpy(image).to("cuda:0") / 127.5 - 1
+        return image
+
+    @staticmethod
+    def mask_all_images(images, masks):
+        masked_images = []
+        for image, mask in zip(images, masks):
+            masked_images.append(Preprocessor.mask_image(image, mask))
+        return masked_images
+
     def __call__(self, images):
         num_images = len(images)
 
@@ -217,6 +247,10 @@ class Preprocessor:
         keypoints = self.keypoint_detector(images)
         if len(keypoints) != num_images:
             raise ValueError("No image keypoints detected")
+
+        images, keypoints = self.filter_by_valid_keypoints(images, keypoints)
+        num_images = len(images)
+
         cropped_images, cam = self.face_cropper(images, keypoints)
         _, masks = self.masking(cropped_images)
         torch.set_grad_enabled(True)
