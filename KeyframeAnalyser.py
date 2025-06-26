@@ -1,14 +1,13 @@
 import ffmpeg
 from SpectreUser import SpectreUser
 from sklearn.cluster import KMeans
-from Inversion import save_image
 import numpy as np
 from preprocess.Preprocess import Preprocessor
 from root import get_project_path
 import cv2
 from typing import Union, List
 import torch
-from torch import Tensor, sub
+from torch import Tensor
 import os
 
 # os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
@@ -21,7 +20,6 @@ class KeyFrameAnalayser:
         self.poses = None
         self.flame_params = None
         self.preprocessor = Preprocessor()
-        # self.spectre = SpectreUser()
 
     def get_frames_from_video(self, video_path, target_fps=10):
         frames = []
@@ -46,6 +44,17 @@ class KeyFrameAnalayser:
             frame_count += 1
         cap.release()
         return frames
+
+    def check_rotation(self, video_path):
+        meta_dict = ffmpeg.probe(video_path)
+        if "rotate" in meta_dict["streams"][0]["tags"].keys():
+            return True
+        return False
+
+    def correct_rotation(self, frame, rotate):
+        if rotate:
+            return cv2.rotate(frame, cv2.ROTATE_180)
+        return frame
 
     def get_poses(self):
         masks, cam, cropped_images = self.preprocessor(self.frames, target_size=512)
@@ -77,12 +86,7 @@ class KeyFrameAnalayser:
         _, key_frame_indices = torch.topk(frame_dist, num, largest=False)
         key_frame_indices = key_frame_indices.tolist()
         keyframes = torch.stack([self.frames[i] for i in key_frame_indices], dim=0)
-        for i in key_frame_indices:
-            img = self.frames[i].permute(2, 0, 1)
-            print(i)
-
-        print(self.poses)
-        print(self.flame_params)
+        return keyframes
 
     def greedy_calculate_cam_distances(self, num):
         # initialization
@@ -101,8 +105,8 @@ class KeyFrameAnalayser:
             submatrix = torch.mean(submatrix, dim=0)
             max_index = torch.argmax(submatrix)
             keyframes.append(col_indices[max_index])
-        frames = torch.stack([self.frames[i] for i in keyframes], dim=0)
-        print(keyframes)
+        frames = [self.frames[i] for i in keyframes]
+        return frames
 
     def clustering_cam_distances(self, num):
         feature_matrix = np.vstack(self.poses)
@@ -119,49 +123,22 @@ class KeyFrameAnalayser:
             )
             closest_index = cluster_indices[np.argmin(distances)]
             keyframes.append(closest_index)  # Get the original tensor
-        frames = torch.stack([self.frames[i] for i in keyframes], dim=0)
-        print(keyframes)
+        # frames = [tensor_to_image(self.frames[i]) for i in keyframes]
+        frames = []
+        for i in keyframes:
+            image = self.frames[i].clone().detach().cpu().numpy()
+            image = 255 * ((image + 1) / 2)
+            image = image.clip(0, 255).astype(np.uint8)
+            frames.append(image)
+
+        return frames
 
     def scale(self, scalee, scaler):
         scale = torch.mean(scaler[scaler > 0]) / torch.mean(scalee[scalee > 0])
         return scalee * scale
 
-    def __call__(self, video_path):
+    def __call__(self, video_path, num_frames=5):
         self.frames = self.get_frames_from_video(video_path, target_fps=10)
-        i1 = self.frames[0]
-        t = self.frames[-1]
-        # j = self.frames[30]
-        # k = torch.stack(self.frames[:2], dim=0)
-        # l = torch.stack(self.frames[:13], dim=0)
         self.get_poses()
-        # self.analyse_frames()
-        # self.pick_frames(5)
-        # self.greedy_calculate_cam_distances(5)
-        self.clustering_cam_distances(5)
-        return self.poses
-        # poses = self.get_poses()
-        # keyframes = self.pick_frames(poses, flame_params)
-        # return keyframes
-
-    def check_rotation(self, video_path):
-        meta_dict = ffmpeg.probe(video_path)
-        if "rotate" in meta_dict["streams"][0]["tags"].keys():
-            return True
-        return False
-        # if int(meta_dict["streams"][0]["tags"]["rotate"]) == 90:
-        #     rotateCode = cv2.ROTATE_90_CLOCKWISE
-        # elif int(meta_dict["streams"][0]["tags"]["rotate"]) == 180:
-        #     rotateCode = cv2.ROTATE_180
-        # elif int(meta_dict["streams"][0]["tags"]["rotate"]) == 270:
-        #     rotateCode = cv2.ROTATE_90_COUNTERCLOCKWISE
-        # return rotateCode
-
-    def correct_rotation(self, frame, rotate):
-        if rotate:
-            return cv2.rotate(frame, cv2.ROTATE_180)
-        return frame
-
-
-if __name__ == "__main__":
-    k = KeyFrameAnalayser()
-    k(f"{get_project_path()}/examples/in/person_193.mp4")
+        key_frames = self.clustering_cam_distances(num_frames)
+        return key_frames

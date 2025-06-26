@@ -6,7 +6,6 @@ import sys
 import pickle
 import copy
 
-from root import get_project_path
 
 sys.path.append(CGSGAN_SOURCE_PATH)
 
@@ -27,6 +26,7 @@ if __name__ == "__main__":
         "~/projects/gan_figure_maker/id_1_out_resize/512/4.jpg",
     ]
     images = [imageio.imread(p) for p in paths]
+    i = images[0]
     generator = initialize_renderer(CGSGAN_MODEL_PATH, "cuda:0")
 
     inverter = Inversion(generator, device="cuda:0")
