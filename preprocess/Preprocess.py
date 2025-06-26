@@ -29,11 +29,11 @@ class KeypointDetector:
         for image in images:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             rects = detector(gray, 1)
-            for i, rect in enumerate(rects):
-                shape = predictor(gray, rect)
-                landmarks.append([np.array([p.x, p.y]) for p in shape.parts()])
             if len(rects) == 0:
                 landmarks.append(-1)
+                continue
+            shape = predictor(gray, rects[0])
+            landmarks.append([np.array([p.x, p.y]) for p in shape.parts()])
         return landmarks
 
 
@@ -76,6 +76,7 @@ class FaceCropper:
             boxes = face_boxes(img)
             if len(boxes) == 0:
                 print(f"No face detected")
+                continue
 
             param_lst, roi_box_lst = tddfa(img, boxes)
             box_idx = find_center_bbox(roi_box_lst, w, h)
@@ -210,15 +211,15 @@ class Preprocessor:
         self.face_cropper = FaceCropper()
         self.masking = Masking()
 
-    def filter_by_valid_keypoints(self, images, keypoints):
-        filtered_images = []
-        filtered_keypoints = []
-        for img, kp in zip(images, keypoints):
-            if kp != -1:
-                filtered_images.append(img)
-                filtered_keypoints.append(kp)
+    def filter_valid(self, filtered, filterer):
+        new_filtered = []
+        new_filterer = []
+        for img, kp in zip(filtered, filterer):
+            if not isinstance(kp, int) or kp != -1:
+                new_filtered.append(img)
+                new_filterer.append(kp)
 
-        return filtered_images, filtered_keypoints
+        return new_filtered, new_filterer
 
     @staticmethod
     def mask_image(image, mask_image):
@@ -248,10 +249,11 @@ class Preprocessor:
         if len(keypoints) != num_images:
             raise ValueError("No image keypoints detected")
 
-        images, keypoints = self.filter_by_valid_keypoints(images, keypoints)
+        images, keypoints = self.filter_valid(images, keypoints)
         num_images = len(images)
 
         cropped_images, cam = self.face_cropper(images, keypoints)
+        cam, images = self.filter_valid(cam, cropped_images)
         _, masks = self.masking(cropped_images)
         torch.set_grad_enabled(True)
         return masks, cam, cropped_images

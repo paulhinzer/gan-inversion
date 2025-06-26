@@ -18,7 +18,9 @@ class SpectreUser:
             f"{get_project_path()}/spectre/pretrained/spectre_model.tar"
         )
         spectre_cfg.model.use_tex = False
-        spectre_cfg.model.flame_model_path = f"{get_project_path()}/models/generic_flame_model.pkl"
+        spectre_cfg.model.flame_model_path = (
+            f"{get_project_path()}/models/generic_flame_model.pkl"
+        )
         self.device = device
         self.spectre: SPECTRE = SPECTRE(spectre_cfg, self.device)
         self.spectre.eval()
@@ -423,10 +425,6 @@ class SpectreLoss(nn.Module, SpectreUser):
             (target_image, target_shape, source_exp_shape, source_shape, source_image),
             axis=1,
         )
-        cv2.imwrite(
-            f"/home/hinzer/projects/CVGAudio2Animation/outputs/debug/spectre_debug_{i}.png",
-            grid_img,
-        )
 
     def get_encoded_tensors(
         self,
@@ -519,10 +517,6 @@ class SpectreLoss(nn.Module, SpectreUser):
             target_shape = tensor2image(target_visdict["shape_images"][i])
             grid_img = np.concatenate(
                 (target_image, target_shape, input_shape, input_image), axis=1
-            )
-            cv2.imwrite(
-                f"/home/hinzer/projects/CVGAudio2Animation/outputs/debug/spectre_debug_{i}.png",
-                grid_img,
             )
 
     def get_loss_only_picutres(
