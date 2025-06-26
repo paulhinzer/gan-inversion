@@ -11,7 +11,7 @@ import torch
 from torch import Tensor, sub
 import os
 
-os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
+# os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
 
 
 class KeyFrameAnalayser:
@@ -21,7 +21,7 @@ class KeyFrameAnalayser:
         self.poses = None
         self.flame_params = None
         self.preprocessor = Preprocessor()
-        self.spectre = SpectreUser()
+        # self.spectre = SpectreUser()
 
     def get_frames_from_video(self, video_path, target_fps=10):
         frames = []
@@ -134,7 +134,7 @@ class KeyFrameAnalayser:
         # k = torch.stack(self.frames[:2], dim=0)
         # l = torch.stack(self.frames[:13], dim=0)
         self.get_poses()
-        self.analyse_frames()
+        # self.analyse_frames()
         # self.pick_frames(5)
         # self.greedy_calculate_cam_distances(5)
         self.clustering_cam_distances(5)
@@ -164,4 +164,4 @@ class KeyFrameAnalayser:
 
 if __name__ == "__main__":
     k = KeyFrameAnalayser()
-    k(f"{get_project_path()}/examples/in/me_faces.mp4")
+    k(f"{get_project_path()}/examples/in/person_171.mp4")

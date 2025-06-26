@@ -22,22 +22,28 @@ def initialize_renderer(model_path, device):
 if __name__ == "__main__":
     paths = [
         "~/projects/gan_figure_maker/id_1_out_resize/512/1.jpg",
-        # "~/projects/gan_figure_maker/id_1_out_resize/512/2.jpg",
-        # "~/projects/gan_figure_maker/id_1_out_resize/512/3.jpg",
-        # "~/projects/gan_figure_maker/id_1_out_resize/512/4.jpg",
+        "~/projects/gan_figure_maker/id_1_out_resize/512/2.jpg",
+        "~/projects/gan_figure_maker/id_1_out_resize/512/3.jpg",
+        "~/projects/gan_figure_maker/id_1_out_resize/512/4.jpg",
     ]
     images = [imageio.imread(p) for p in paths]
     generator = initialize_renderer(CGSGAN_MODEL_PATH, "cuda:0")
 
     inverter = Inversion(generator, device="cuda:0")
-    images_in_bgr = inverter.preprocess(images)
+    images_in_bgr = inverter.preprocess(images, target_size=512)
 
-    weights = {"mse_loss": 1, "lpips_loss": 1, "id_loss": 1, "lr": 0.001, "bs": 3}
-    for _ in tqdm(range(10)):
+    weights = {
+        "mse_loss": 1,
+        "lpips_loss": 1,
+        "id_loss": 1,
+        "lr": 0.001,
+        "batch_size": 3,
+    }
+    for _ in tqdm(range(400)):
         current_w, losses = inverter.inversion_step(weights)
     image = inverter.render_w()
     save_image(image, name="image_after_inversion")
-    for _ in range(10):
+    for _ in tqdm(range(100)):
         current_w, losses = inverter.tuning_step(weights)
     image = inverter.render_w()
     save_image(image, name="image_after_tuning")
