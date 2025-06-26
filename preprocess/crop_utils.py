@@ -32,12 +32,12 @@ def eg3dcamparams(R_in):
 
 def get_crop_bound(lm, method="ffhq"):
     if len(lm) == 106:
-        left_e = lm[104]
-        right_e = lm[105]
-        nose = lm[49]
-        left_m = lm[84]
-        right_m = lm[90]
-        center = (lm[1] + lm[31]) * 0.5
+        left_e = lm[38]
+        right_e = lm[88]
+        nose = lm[80]
+        left_m = lm[52]
+        right_m = lm[61]
+        center = (lm[9] + lm[25]) * 0.5
     elif len(lm) == 68:
         left_e = np.mean(lm[36:42], axis=0)
         right_e = np.mean(lm[42:48], axis=0)

@@ -48,7 +48,7 @@ class KeyFrameAnalayser:
         return frames
 
     def get_poses(self):
-        masks, cam, cropped_images = self.preprocessor(self.frames)
+        masks, cam, cropped_images = self.preprocessor(self.frames, target_size=512)
         images = self.preprocessor.mask_all_images(cropped_images, masks)
         self.frames = images
         self.poses = cam
@@ -164,4 +164,4 @@ class KeyFrameAnalayser:
 
 if __name__ == "__main__":
     k = KeyFrameAnalayser()
-    k(f"{get_project_path()}/examples/in/person_171.mp4")
+    k(f"{get_project_path()}/examples/in/person_193.mp4")
