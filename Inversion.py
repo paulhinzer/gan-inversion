@@ -13,16 +13,11 @@ from losses.id_loss.id_loss import IDLoss
 class Inversion:
     def __init__(self, generator, device):
         self.preprocessor = Preprocessor()
-        self.settings = {
-            "one_w_for_all": True,
-            "optimize_cam": False,
-            "device": device,
-        }
         self.device = device
         self.generator = generator
         self._images = torch.zeros(1)
         self.loss_L2 = torch.nn.MSELoss(reduction="mean").to(self.device)
-        self.loss_percept = lpips.LPIPS(net="alex").to(self.device)
+        self.loss_percept = lpips.LPIPS(net="vgg").to(self.device)
         self.ID_loss = IDLoss()
         self._w = None
         self._optim = {"optimizer": None, "state": "initial"}
@@ -43,7 +38,7 @@ class Inversion:
         return w_samples
 
     def calc_average_w(self):
-        w_samples = self.get_random_w(10000)
+        w_samples = self.get_random_w(100_000)
         w_avg = (
             torch.mean(w_samples, dim=0)
             .unsqueeze(dim=0)
@@ -67,43 +62,31 @@ class Inversion:
         return losses
 
     def pre_tuning(self):
-        assert self._w is not None
+        torch.set_grad_enabled(True)
+        if self._w is None:
+            self.reset_w()
         self._optim = {
-            "optimizer": torch.optim.Adam(params=self.generator.parameters(), lr=0.001),
+            "optimizer": torch.optim.Adam(params=self.generator.parameters(), lr=0.000),
             "state": "tune",
         }
-        self.pre_tuning_done = True
-        self.pre_inversion_done = False
 
     def pre_inversion(self):
         torch.set_grad_enabled(True)
-        avg_w: Tensor = self.calc_average_w()
-        if self.settings["one_w_for_all"]:
-            w = avg_w.clone().detach().requires_grad_(True).to(self.device)
-        else:
-            w = (
-                avg_w.repeat((self.num_images, 1, 1))
-                .clone()
-                .detach()
-                .requires_grad_(True)
-                .to(self.device)
-            )
-        trainable = [{"params": w}]
-        if self.settings["optimize_cam"]:
-            trainable += [{"params": self.cam}]
+        if self._w is None:
+            self.reset_w()
+        trainable = [{"params": self._w}]
         self._optim = {
-            "optimizer": torch.optim.Adam(params=trainable, lr=0.001),
+            "optimizer": torch.optim.Adam(params=trainable, lr=0.000),
             "state": "invert",
         }
-        self._w = w
-        self.pre_inversion_done = True
-        self.pre_tuning_done = False
 
-    def shape_w(self, w, batch_size=None):
-        if batch_size is None:
-            batch_size = self.num_images
+    def reset_w(self):
+        avg_w = self.calc_average_w()
+        self._w = avg_w.clone().detach().requires_grad_(True).to(self.device)
+
+    def shape_w(self, w, num_images):
         if w.shape[0] == 1:
-            return w.expand(batch_size, 1, 512)
+            return w.expand(num_images, 1, 512)
         return w
 
     def invert(self):
@@ -111,34 +94,31 @@ class Inversion:
         weights = self.settings["loss_weights"]["inversion"]
         for _ in tqdm(range(self.settings["max_inversion_steps"])):
             self.inversion_step(weights)
-        return self.shape_w(self._w)
+        return self.shape_w(self._w, self.num_images)
 
     def step(self, hyperparams) -> dict:
         self.update_optimizer_lr(hyperparams["lr"])
-        if "bs" in hyperparams.keys():
-            batch_size = hyperparams["bs"]
-        else:
-            batch_size = self.num_images
-        loss = {}
-        for start_index in range(0, self.num_images, batch_size):
-            batch_size = min(batch_size, self.num_images - start_index)
-            end_index = start_index + batch_size
-            self.get_optim().zero_grad()
-            ground_truth = self._images[start_index:end_index, ...]
-            gen_w = self.shape_w(self._w, batch_size)
-            generated_images = self.generator.synthesis(
-                ws=gen_w, c=self.cam[start_index:end_index, ...], random_bg=False
-            )["image"]
-            loss = self.calc_loss(generated_images, ground_truth, hyperparams)
-            loss["full"].backward()
-            self.get_optim().step()
+        batch_size = int(hyperparams["batch_size"])
+        self.get_optim().zero_grad()
+
+        select_indices = np.arange(self.num_images, dtype=int)
+        if batch_size != self.num_images:
+            select_indices = np.random.choice(select_indices, batch_size)
+        ground_truth = self._images[select_indices]
+        cam = self.cam[select_indices]
+
+        gen_w = self.shape_w(self._w, batch_size)
+        generated_images = self.generator.synthesis(
+            ws=gen_w, c=cam, random_bg=False
+        )["image"]
+        loss = self.calc_loss(generated_images, ground_truth, hyperparams)
+        loss["full"].backward()
+        self.get_optim().step()
         return loss
 
     def inversion_step(self, hyperparams):
-        if self.get_state() == "initial":
+        if self.get_state() == "initial" or self.get_state() == "tune":
             self.pre_inversion()
-        if self.get_state() != "invert":
-            raise AttributeError("Model is not currently inverting.")
         loss = self.step(hyperparams)
         return self.get_current_w_pivot(), loss
 
@@ -157,7 +137,7 @@ class Inversion:
         return self._optim["optimizer"]
 
     def set_state(self, state):
-        assert state in ["initial", "invert", "tune", "finished"]
+        assert state in ["initial", "invert", "tune"]
         self._optim["state"] = state
 
     def get_state(self):
@@ -169,7 +149,7 @@ class Inversion:
         for _ in tqdm(range(self.settings["max_tuning_steps"])):
             _, _ = self.tuning_step(weights)
 
-    def tuning_step(self, hyperparams, lr=0.001):
+    def tuning_step(self, hyperparams):
         if self.get_state() == "initial":
             self.pre_inversion()
         if self.get_state() == "invert":
@@ -179,8 +159,8 @@ class Inversion:
         loss = self.step(hyperparams)
         return self.get_current_w_pivot(), loss
 
-    def preprocess(self, images):
-        masks, cams, images = self.preprocessor(images)
+    def preprocess(self, images, target_size):
+        masks, cams, images = self.preprocessor(images, target_size=target_size)
         cams_tensors = []
         masked_images = []
 

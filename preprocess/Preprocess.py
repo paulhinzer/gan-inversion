@@ -4,11 +4,18 @@ import dlib
 import cv2
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
-
+from torch import nn
 from root import get_project_path
+from insightface import app
+
+sys.path.append(f"{get_project_path()}/preprocess/3DDFA_V2/")
+from FaceBoxes import FaceBoxes  # type: ignore
+from TDDFA import TDDFA  # type: ignore
+from utils_3ddfa.pose import P2sRt  # type: ignore
+from utils_3ddfa.pose import matrix2angle  # type: ignore
+
 from preprocess.MODNet.src.models.modnet import MODNet
 from preprocess.crop_utils import (
     get_crop_bound,
@@ -18,31 +25,41 @@ from preprocess.crop_utils import (
     eg3dcamparams,
 )
 
+class KeypointDetectorInsightface:
+    def __init__(self):
+        self.app = app.FaceAnalysis(name='buffalo_l')  # enable detection model only
+        self.app.prepare(ctx_id=0)
 
-class KeypointDetector:
     def __call__(self, images):
         landmarks = []
-        detector = dlib.get_frontal_face_detector()
-        predictor = dlib.shape_predictor(
-            f"{get_project_path()}/models/shape_predictor_68_face_landmarks.dat"
-        )
+        for img in images:
+            detection = self.app.get(img)
+            if len(detection) > 0:
+                landmarks.append(detection[0].landmark_2d_106)
+            else:
+                landmarks.append([])
+        return landmarks
+
+class KeypointDetectorDlib:
+    def __init__(self):
+        self.detector = dlib.get_frontal_face_detector()
+        self.predictor = dlib.shape_predictor(f"{get_project_path()}/models/shape_predictor_68_face_landmarks.dat")
+
+    def __call__(self, images):
+        landmarks = []
         for image in images:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            rects = detector(gray, 1)
+            rects = self.detector(gray, 1)
+            if len(rects) == 0:
+                landmarks.append([])
             for i, rect in enumerate(rects):
-                shape = predictor(gray, rect)
+                shape = self.predictor(gray, rect)
                 landmarks.append([np.array([p.x, p.y]) for p in shape.parts()])
         return landmarks
 
 
 class FaceCropper:
-    def __call__(self, images, lmx, size=512):
-        sys.path.append(f"{get_project_path()}/preprocess/3DDFA_V2/")
-        from FaceBoxes import FaceBoxes  # type: ignore
-        from TDDFA import TDDFA  # type: ignore
-        from utils_3ddfa.pose import P2sRt  # type: ignore
-        from utils_3ddfa.pose import matrix2angle  # type: ignore
-
+    def __init__(self):
         cfg = {
             "arch": "mobilenet",
             "widen_factor": 1.0,
@@ -53,9 +70,10 @@ class FaceCropper:
             "num_params": 62,
         }
 
-        gpu_mode = True
-        tddfa = TDDFA(gpu_mode=gpu_mode, **cfg)
-        face_boxes = FaceBoxes()
+        self.tddfa = TDDFA(gpu_mode=True, **cfg)
+        self.face_boxes = FaceBoxes()
+
+    def __call__(self, images, lmx, size=512):
         results_meta = []
         cropped_images = []
         for i, item in enumerate(zip(images, lmx)):
@@ -71,11 +89,11 @@ class FaceCropper:
             h, w = img.shape[:2]
 
             # Detect faces, get 3DMM params and roi boxes
-            boxes = face_boxes(img)
+            boxes = self.face_boxes(img)
             if len(boxes) == 0:
                 print(f"No face detected")
 
-            param_lst, roi_box_lst = tddfa(img, boxes)
+            param_lst, roi_box_lst = self.tddfa(img, boxes)
             box_idx = find_center_bbox(roi_box_lst, w, h)
 
             param = param_lst[box_idx]
@@ -84,7 +102,7 @@ class FaceCropper:
 
             # Adjust z-translation in object space
             R_ = param[:12].reshape(3, -1)[:, :3]
-            u = tddfa.bfm.u.reshape(3, -1, order="F")
+            u = self.tddfa.bfm.u.reshape(3, -1, order="F")
             trans_z = np.array([0, 0, 0.5 * u[2].mean()])  # Adjust the object center
             trans = np.matmul(R_, trans_z.reshape(3, 1))
             t3d += trans.reshape(3)
@@ -92,18 +110,15 @@ class FaceCropper:
             """ Camera extrinsic estimation for GAN training """
             # Normalize P to fit in the original image (before 3DDFA cropping)
             sx, sy, ex, ey = roi_box_lst[0]
-            scale_x = (ex - sx) / tddfa.size
-            scale_y = (ey - sy) / tddfa.size
+            scale_x = (ex - sx) / self.tddfa.size
+            scale_y = (ey - sy) / self.tddfa.size
             t3d[0] = (t3d[0] - 1) * scale_x + sx
-            t3d[1] = (tddfa.size - t3d[1]) * scale_y + sy
+            t3d[1] = (self.tddfa.size - t3d[1]) * scale_y + sy
             t3d[0] = (t3d[0] - 0.5 * (w - 1)) / (0.5 * (w - 1))  # Normalize to [-1,1]
-            t3d[1] = (t3d[1] - 0.5 * (h - 1)) / (
-                0.5 * (h - 1)
-            )  # Normalize to [-1,1], y is flipped for image space
+            t3d[1] = (t3d[1] - 0.5 * (h - 1)) / (0.5 * (h - 1))  # Normalize to [-1,1], y is flipped for image space
             t3d[1] *= -1
-            t3d[2] = (
-                0  # orthogonal camera is agnostic to Z (the model always outputs 66.67)
-            )
+            t3d[2] = 0
+            # orthogonal camera is agnostic to Z (the model always outputs 66.67)
 
             s_relative = s_relative * 2000
             scale_x = (ex - sx) / (w - 1)
@@ -115,9 +130,7 @@ class FaceCropper:
             quad_x = quad_x * s
             quad_y = quad_y * s
             c, x, y = quad_c, quad_x, quad_y
-            quad = np.stack([c - x - y, c - x + y, c + x + y, c + x - y]).astype(
-                np.float32
-            )
+            quad = np.stack([c - x - y, c - x + y, c + x + y, c + x - y]).astype(np.float32)
 
             # final projection matrix
             s = 1
@@ -136,23 +149,14 @@ class FaceCropper:
 
 class Masking:
     def __init__(self):
-        self.im_transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-            ]
-        )
-
-    def get_model(
-        self,
-        checkpoint_path=f"{get_project_path()}/models/modnet_photographic_portrait_matting.ckpt",
-    ):
-        modnet = MODNet(backbone_pretrained=False)
-        modnet = nn.DataParallel(modnet).cuda()
-        weights = torch.load(checkpoint_path)
-        modnet.load_state_dict(weights)
-        modnet.eval()
-        return modnet
+        self.im_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+        self.modnet = MODNet(backbone_pretrained=False)
+        self.modnet = nn.DataParallel(self.modnet).cuda()
+        self.modnet.load_state_dict(torch.load(f"{get_project_path()}/models/modnet_photographic_portrait_matting.ckpt"))
+        self.modnet.eval()
 
     def resize_for_input(self, img: torch.Tensor, ref_size=512):
         _, _, im_h, im_w = img.shape
@@ -181,43 +185,40 @@ class Masking:
         return img
 
     def __call__(self, images):
-        modnet = self.get_model()
         masks = []
-        images_resized = []
-
         for img in images:
+
+            img_h = img.shape[0]
+            img_w = img.shape[1]
+
             img = self.unify_channels(img)
             img = Image.fromarray(img)
             img = self.im_transform(img)
             img = img[None, ...]
 
             img_resized = self.resize_for_input(img)
-            _, _, pred_mask = modnet(img_resized.cuda(), True)
+            _, _, pred_mask = self.modnet(img_resized.cuda(), True)
             _, _, im_h, im_w = img.shape
             mask = F.interpolate(pred_mask, size=(im_h, im_w), mode="area")
             mask = mask.detach().cpu().numpy()
 
-            masks.append((mask[0][0] * 255).astype(np.uint8))
-            images_resized.append(img_resized)
-        return images_resized, masks
+            masks.append(cv2.resize((mask[0][0] * 255).astype(np.uint8), [img_w, img_h]))
+
+        return masks
 
 
 class Preprocessor:
     def __init__(self):
-        self.keypoint_detector = KeypointDetector()
+        self.keypoint_detector = KeypointDetectorInsightface()
         self.face_cropper = FaceCropper()
         self.masking = Masking()
 
-    def __call__(self, images):
-        num_images = len(images)
-
-        if num_images == 0:
-            raise ValueError("No images given")
-
+    def __call__(self, images, target_size):
         keypoints = self.keypoint_detector(images)
-        if len(keypoints) != num_images:
-            raise ValueError("No image keypoints detected")
-        cropped_images, cam = self.face_cropper(images, keypoints)
-        _, masks = self.masking(cropped_images)
+        images_with_keypoints = [images[i] for i in range(len(images)) if len(keypoints[i]) > 0]
+        keypoints = [keypoints[i] for i in range(len(keypoints)) if len(keypoints[i]) > 0]
+        cropped_images, cam = self.face_cropper(images_with_keypoints, keypoints, target_size)
+        masks = self.masking(cropped_images)
+
         torch.set_grad_enabled(True)
         return masks, cam, cropped_images
