@@ -47,14 +47,21 @@ class KeyFrameAnalayser:
 
     def check_rotation(self, video_path):
         meta_dict = ffmpeg.probe(video_path)
+        rotateCode = None
         if "rotate" in meta_dict["streams"][0]["tags"].keys():
-            return True
-        return False
+            rotate_str = meta_dict["streams"][0]["tags"]["rotate"]
+            if int(rotate_str) == 90:
+                rotateCode = cv2.ROTATE_90_CLOCKWISE
+            elif int(rotate_str) == 180:
+                rotateCode = cv2.ROTATE_180
+            elif int(rotate_str) == 270:
+                rotateCode = cv2.ROTATE_90_COUNTERCLOCKWISE
+        return rotateCode
 
     def correct_rotation(self, frame, rotate):
-        if rotate:
-            return cv2.rotate(frame, cv2.ROTATE_180)
-        return frame
+        if rotate is None:
+            return frame
+        return cv2.rotate(frame, rotate)
 
     def get_poses(self):
         masks, cam, cropped_images = self.preprocessor(self.frames, target_size=512)
@@ -139,6 +146,8 @@ class KeyFrameAnalayser:
 
     def __call__(self, video_path, num_frames=5):
         self.frames = self.get_frames_from_video(video_path, target_fps=10)
+        i = self.frames[0]
+        j = self.frames[10]
         self.get_poses()
         key_frames = self.clustering_cam_distances(num_frames)
         return key_frames
