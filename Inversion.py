@@ -1,8 +1,10 @@
 import cv2
 import os
+
+from easydict import EasyDict
+
 from root import get_project_path
 import lpips
-from torch import Tensor
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -207,6 +209,21 @@ class Inversion:
 
         image = self.generator.synthesis(ws=w, c=cam, random_bg=False)["image"]
         return image
+
+    def get_gaussian_scene(self, gaussian_model):
+        w = self.get_current_w_pivot()
+
+        gan_result = self.generator.synthesis(ws=w, c=self.cam, random_bg=False, render_output=False)
+
+        gan_model = EasyDict(gan_result["gaussian_params"][0])
+        gaussian_model._xyz = gan_model._xyz
+        gaussian_model._features_dc = gan_model._features_dc
+        gaussian_model._features_rest = gan_model._features_dc[:, 0:0]
+        gaussian_model._scaling = gan_model._scaling
+        gaussian_model._rotation = gan_model._rotation
+        gaussian_model._opacity = gan_model._opacity
+
+        return gaussian_model
 
 
 def tensor_to_image(tensor, normalize=True):

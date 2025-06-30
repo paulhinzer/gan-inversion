@@ -1,16 +1,12 @@
 import ffmpeg
-from SpectreUser import SpectreUser
 from sklearn.cluster import KMeans
 import numpy as np
 from preprocess.Preprocess import Preprocessor
-from root import get_project_path
 import cv2
-from typing import Union, List
+from typing import List
 import torch
 from torch import Tensor
-import os
 
-# os.environ.pop("QT_QPA_PLATFORM_PLUGIN_PATH")
 
 
 class KeyFrameAnalayser:
@@ -30,7 +26,7 @@ class KeyFrameAnalayser:
             return frames
 
         original_fps = cap.get(cv2.CAP_PROP_FPS)
-        frame_interval = int(original_fps / target_fps)
+        frame_interval = int(np.round(original_fps / target_fps))
         frame_count = 0
         while True:
             ret, frame = cap.read()
@@ -63,11 +59,10 @@ class KeyFrameAnalayser:
             return frame
         return cv2.rotate(frame, rotate)
 
-    def get_poses(self):
-        masks, cam, cropped_images = self.preprocessor(self.frames, target_size=512)
-        images = self.preprocessor.mask_all_images(cropped_images, masks)
-        self.frames = images
-        self.poses = cam
+    def get_poses(self, frames):
+        masks, cam, cropped_images = self.preprocessor(frames, target_size=512)
+        frames = self.preprocessor.mask_all_images(cropped_images, masks)
+        return frames, cam
 
     def analyse_frames(self):
         self.frames: List[Tensor] = self.frames
@@ -144,10 +139,33 @@ class KeyFrameAnalayser:
         scale = torch.mean(scaler[scaler > 0]) / torch.mean(scalee[scalee > 0])
         return scalee * scale
 
+    def filter_blurry(self, frames):
+        variances = []
+        good_frames = []
+        for frame in frames:
+            variances.append(cv2.Laplacian(frame, cv2.CV_64F).var())
+
+        for i in range(0, len(frames) - 1, 2):
+            if variances[i] > variances[i + 1]:
+                good_frames.append(frames[i])
+            else:
+                good_frames.append(frames[i + 1])
+        return good_frames
+
+    def color_correction(self, frames):
+        box_size = 50
+        reference_white = frames[0]
+        H, W, C = reference_white.shape
+        reference_white = reference_white[0:box_size, int(W * 0.8) - box_size:int(W * 0.8) + box_size]
+        reference_white = reference_white.mean(axis=(0, 1))
+        color_scale = 220 / reference_white
+        corrected_frames = [np.clip(frame * color_scale[None, None, :], 0, 255).astype(np.uint8) for frame in frames]
+        return corrected_frames
+
     def __call__(self, video_path, num_frames=5):
-        self.frames = self.get_frames_from_video(video_path, target_fps=10)
-        i = self.frames[0]
-        j = self.frames[10]
-        self.get_poses()
+        frames = self.get_frames_from_video(video_path, target_fps=30)
+        frames = self.filter_blurry(frames)
+        frames = self.color_correction(frames)
+        self.frames, self.poses = self.get_poses(frames)
         key_frames = self.clustering_cam_distances(num_frames)
         return key_frames
