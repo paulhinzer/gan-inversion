@@ -5,7 +5,7 @@ from spectre.src.utils.util import tensor2video, tensor2image
 from skimage.transform import estimate_transform, warp
 from spectre.config import cfg as spectre_cfg
 import numpy as np
-from SpectreVive import SPECTRE
+from Spectre import SPECTRE
 import torch
 import torch.nn as nn
 from torch import Tensor

@@ -39,7 +39,7 @@ if __name__ == "__main__":
         "lr": 0.001,
         "batch_size": 3,
     }
-    for _ in tqdm(range(400)):
+    for _ in tqdm(range(50)):
         current_w, losses = inverter.inversion_step(weights)
     image = inverter.render_w()
     save_image(image, name="image_after_inversion")
