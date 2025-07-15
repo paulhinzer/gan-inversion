@@ -1,0 +1,15 @@
+imageio
+opencv-python>4.5
+opencv-python-headless
+easydict
+lpips
+insightface
+onnxruntime==1.17
+onnxruntime-gpu==1.17
+plyfile
+ninja
+ffmpeg-python
+numpy<2
+yacs
+kornia
+git+https://github.com/mattloper/chumpy

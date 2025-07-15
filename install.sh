@@ -16,5 +16,14 @@ for file in "${files[@]}"; do
     curl -L -o "models/$file" "${base_url}${file}"
 done
 
+if [ -n "$(conda env list | grep 'ganinv ')" ]; then
+    echo "A conda env with the name 'ganinv' already exists"
+    exit 1
+fi
+
+conda create -n ganinv python=3.10
+conda activate ganinv
+conda install pytorch==1.13.0 torchvision==0.14.0 torchaudio==0.13.0 pytorch-cuda=11.7 -c pytorch -c nvidia
+pip install -r requirements.txt
 cd ./preprocess/3DDFA_V2/
 ./build.sh
