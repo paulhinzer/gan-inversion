@@ -67,8 +67,10 @@ class KeyFrameAnalayser:
     def analyse_frames(self):
         self.frames: List[Tensor] = self.frames
         frames = torch.stack(self.frames, dim=0).permute(0, 3, 1, 2)
+        self.flame_params = []
         with torch.no_grad():
-            self.flame_params = self.spectre.get_encoding_no_crop(frames)
+            for frame in frames:
+                self.flame_params.append(self.spectre.get_encoding_no_crop(frame.unsqueeze(dim=0)))
 
     def pick_frames(self, num: int):
         poses = [torch.from_numpy(arr) for arr in self.poses]
@@ -163,7 +165,7 @@ class KeyFrameAnalayser:
         return corrected_frames
 
     def __call__(self, video_path, num_frames=5):
-        frames = self.get_frames_from_video(video_path, target_fps=30)
+        frames = self.get_frames_from_video(video_path, target_fps=10)
         frames = self.filter_blurry(frames)
         frames = self.color_correction(frames)
         self.frames, self.poses = self.get_poses(frames)

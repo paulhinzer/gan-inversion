@@ -31,7 +31,7 @@ from root import get_project_path
 torch.backends.cudnn.benchmark = True
 import numpy as np
 
-DEBUG = True
+DEBUG = False
 
 
 class SPECTRE(nn.Module):

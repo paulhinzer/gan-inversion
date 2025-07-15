@@ -1,6 +1,6 @@
 from PIL import Image
 import sys
-import dlib
+# import dlib
 import cv2
 import numpy as np
 import torch
