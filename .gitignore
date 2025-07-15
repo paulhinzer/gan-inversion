@@ -27,6 +27,7 @@ MANIFEST
 /models/
 paths.py
 /examples/out/
+preprocess/3DDFA_V2/FaceBoxes/utils/nms/*
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
