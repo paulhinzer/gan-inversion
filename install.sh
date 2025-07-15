@@ -15,7 +15,7 @@ mkdir -p models
 for file in "${files[@]}"; do
     curl -L -o "models/$file" "${base_url}${file}"
 done
-
+source ~/miniconda3/etc/profile.d/conda.sh
 if [ -n "$(conda env list | grep 'ganinv ')" ]; then
     echo "A conda env with the name 'ganinv' already exists"
     exit 1
@@ -23,7 +23,10 @@ fi
 
 conda create -n ganinv python=3.10
 conda activate ganinv
-conda install pytorch==1.13.0 torchvision==0.14.0 torchaudio==0.13.0 pytorch-cuda=11.7 -c pytorch -c nvidia
-pip install -r requirements.txt
+conda install pytorch==1.13.0 torchvision==0.14.0 torchaudio==0.13.0 pytorch-cuda=11.7 -c pytorch -c nvidia -y
+pip install -r requirements.txt -y
+git clone --recursive https://github.com/ashawkey/diff-gaussian-rasterization
+pip install ./diff-gaussian-rasterization
+rm ./diff-gaussian-rasterization
 cd ./preprocess/3DDFA_V2/
 ./build.sh
